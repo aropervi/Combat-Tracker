@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Combat Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f6fa;
+        }
+
+        .tracker-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .round-counter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #3498db;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+            margin-left: 10px;
+            padding: 4px 8px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .combatant {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            cursor: move;
+        }
+
+        .combatant.dragging {
+            opacity: 0.5;
+            background: #e9ecef;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .ally { background: #2ecc71; }
+        .enemy { background: #e74c3c; }
+        .boss { background: #9b59b6; }
+
+        .combatant-name {
+            flex-grow: 1;
+            font-weight: 500;
+        }
+
+        .conditions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin: 0 10px;
+        }
+
+        .condition {
+            padding: 3px 8px;
+            background: #ffeaa7;
+            border-radius: 12px;
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        .condition:hover {
+            background: #ffd43b;
+        }
+
+        .condition .tooltip {
+            visibility: hidden;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 12px;
+            background: #2d3436;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            width: 220px;
+            z-index: 100;
+            margin-bottom: 8px;
+        }
+
+        .condition:hover .tooltip {
+            visibility: visible;
+        }
+
+        .add-condition {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-content h3 {
+            margin: 0 0 16px 0;
+            color: #2d3436;
+        }
+
+        .custom-condition {
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .custom-condition input {
+            width: calc(100% - 80px);
+            padding: 8px;
+            margin-right: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .condition-option {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .condition-option:last-child {
+            border-bottom: none;
+        }
+
+        .condition-option label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .condition-description {
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+            margin-left: 24px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="tracker-container">
+        <div class="header">
+            <div class="round-counter">
+                <button onclick="decrementRound()">-</button>
+                <span id="roundNumber">1</span>
+                <button onclick="incrementRound()">+</button>
+            </div>
+            <button onclick="showAddModal()">+ Add Combatant</button>
+        </div>
+
+        <div id="combatantList">
+            <div class="combatant" draggable="true">
+                <div class="status-dot ally"></div>
+                <span class="combatant-name">Erayra Luznias (Druida)</span>
+                <div class="conditions"></div>
+                <button class="add-condition" onclick="showConditionsModal(this.parentElement)">+C</button>
+                <button class="delete-btn" onclick="this.parentElement.remove()">×</button>
+            </div>
+            <div class="combatant" draggable="true">
+                <div class="status-dot ally"></div>
+                <span class="combatant-name">Waldo Bubbles (Mago)</span>
+                <div class="conditions"></div>
+                <button class="add-condition" onclick="showConditionsModal(this.parentElement)">+C</button>
+                <button class="delete-btn" onclick="this.parentElement.remove()">×</button>
+            </div>
+            <div class="combatant" draggable="true">
+                <div class="status-dot ally"></div>
+                <span class="combatant-name">Rhytah Lazo (Arcane Trickster)</span>
+                <div class="conditions"></div>
+                <button class="add-condition" onclick="showConditionsModal(this.parentElement)">+C</button>
+                <button class="delete-btn" onclick="this.parentElement.remove()">×</button>
+            </div>
+            <div class="combatant" draggable="true">
+                <div class="status-dot ally"></div>
+                <span class="combatant-name">Hake Silver (Paladin)</span>
+                <div class="conditions"></div>
+                <button class="add-condition" onclick="showConditionsModal(this.parentElement)">+C</button>
+                <button class="delete-btn" onclick="this.parentElement.remove()">×</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <h3>Add Combatant</h3>
+            <div class="form-group">
+                <label for="name">Name:</label>
+                <input type="text" id="name" placeholder="Enter name">
+            </div>
+            <div class="form-group">
+                <label for="type">Type:</label>
+                <select id="type">
+                    <option value="ally">Ally</option>
+                    <option value="enemy">Enemy</option>
+                    <option value="boss">Boss</option>
+                </select>
+            </div>
+            <div class="modal-buttons">
+                <button onclick="hideAddModal()">Cancel</button>
+                <button onclick="addCombatant()">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="conditionsModal" class="modal">
+        <div class="modal-content">
+            <h3>Add Conditions</h3>
+            <div class="custom-condition">
+                <label>Custom Condition:</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="text" id="customCondition" placeholder="Enter custom condition">
+                    <button onclick="addCustomCondition()">Add</button>
+                </div>
+            </div>
+            <div id="conditionsList"></div>
+            <div class="modal-buttons">
+                <button onclick="hideConditionsModal()">Cancel</button>
+                <button onclick="saveConditions()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const conditions = {
+            blinded: "A blinded creature can't see and automatically fails any ability check that requires sight. Attack rolls against the creature have advantage, and the creature's attack rolls have disadvantage.",
+            charmed: "A charmed creature can't attack the charmer or target them with harmful abilities or magical effects. The charmer has advantage on any ability check to interact socially with the creature.",
+            frightened: "A frightened creature has disadvantage on ability checks and attack rolls while the source of its fear is within line of sight. The creature can't willingly move closer to the source of its fear.",
+            grappled: "A grappled creature's speed becomes 0, and it can't benefit from any bonus to its speed. The condition ends if the grappler is incapacitated or if an effect removes the grappled creature from the grappler's reach.",
+            paralyzed: "A paralyzed creature is incapacitated and can't move or speak. Attack rolls against the creature have advantage. Any attack that hits the creature is a critical hit if the attacker is within 5 feet of the creature.",
+            poisoned: "A poisoned creature has disadvantage on attack rolls and ability checks.",
+            restrained: "A restrained creature's speed becomes 0, and it can't benefit from any bonus to its speed. Attack rolls against the creature have advantage, and the creature's attack rolls have disadvantage.",
+            stunned: "A stunned creature is incapacitated, can't move, and can speak only falteringly. The creature automatically fails Strength and Dexterity saving throws. Attack rolls against the creature have advantage."
+        };
+
+        let currentCombatant = null;
+
+        function showConditionsModal(combatant) {
+            currentCombatant = combatant;
+            const modal = document.getElementById('conditionsModal');
+            const conditionsList = document.getElementById('conditionsList');
+            conditionsList.innerHTML = '';
+
+            Object.entries(conditions).forEach(([name, description]) => {
+                const div = document.createElement('div');
+                div.className = 'condition-option';
+                div.innerHTML = `
+                    <label>
+                        <input type="checkbox" value="${name}">
+                        ${name.charAt(0).toUpperCase() + name.slice(1)}
+                    </label>
+                    <div class="condition-description">${description}</div>
+                `;
+                conditionsList.appendChild(div);
+            });
+
+            modal.style.display = 'block';
+        }
+
+        function hideConditionsModal() {
+            document.getElementById('conditionsModal').style.display = 'none';
+            currentCombatant = null;
+        }
+
+        function addCustomCondition() {
+            const customInput = document.getElementById('customCondition');
+            const customName = customInput.value.trim();
+            
+            if (customName) {
+                const conditionsDiv = currentCombatant.querySelector('.conditions');
+                const condition = document.createElement('span');
+                condition.className = 'condition';
+                condition.innerHTML = customName;
+                condition.addEventListener('click', function() {
+                    this.remove();
+                });
+                conditionsDiv.appendChild(condition);
+                customInput.value = '';
+            }
+        }
+
+        function saveConditions() {
+            const checkboxes = document.querySelectorAll('#conditionsList input[type="checkbox"]:checked');
+            const conditionsDiv = currentCombatant.querySelector('.conditions');
+
+            checkboxes.forEach(checkbox => {
+                const condition = document.createElement('span');
+                condition.className = 'condition';
+                condition.innerHTML = `
+                    ${checkbox.value}
+                    <div class="tooltip">${conditions[checkbox.value]}</div>
+                `;
+                condition.addEventListener('click', function() {
+                    this.remove();
+                });
+                conditionsDiv.appendChild(condition);
+            });
+
+            hideConditionsModal();
+        }
+
+        function decrementRound() {
+            const roundNumber = document.getElementById('roundNumber');
+            const currentRound = parseInt(roundNumber.textContent);
+            if (currentRound > 1) {
+                roundNumber.textContent = currentRound - 1;
+            }
+        }
+
+        function incrementRound() {
+            const roundNumber = document.getElementById('roundNumber');
+            roundNumber.textContent = parseInt(roundNumber.textContent) + 1;
+        }
+
+        function showAddModal() {
+            document.getElementById('addModal').style.display = 'block';
+        }
+
+        function hideAddModal() {
+            document.getElementById('addModal').style.display = 'none';
+            document.getElementById('name').value = '';
+        }
+
+        function addCombatant() {
+            const name = document.getElementById('name').value;
+            const type = document.getElementById('type').value;
+            
+            if (!name) return;
+
+            const combatant = document.createElement('div');
+            combatant.className = 'combatant';
+            combatant.draggable = true;
+
+            combatant.innerHTML = `
+                <div class="status-dot ${type}"></div>
+                <span class="combatant-name">${name}</span>
+                <div class="conditions"></div>
+                <button class="add-condition" onclick="showConditionsModal(this.parentElement)">+C</button>
+                <button class="delete-btn" onclick="this.parentElement.remove()">×</button>
+            `;
+
+            addDragListeners(combatant);
+            document.getElementById('combatantList').appendChild(combatant);
+            hideAddModal();
+        }
+
+        // Drag and drop functionality
+        function addDragListeners(element) {
+            element.addEventListener('dragstart', () => {
+                element.classList.add('dragging');
+            });
+
+            element.addEventListener('dragend', () => {
+                element.classList.remove('dragging');
+            });
+        }
+
+        const container = document.getElementById('combatantList');
+        container.addEventListener('dragover', e => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(container, e.clientY);
+            const draggable = document.querySelector('.dragging');
+            if (afterElement == null) {
+                container.appendChild(draggable);
+            } else {
+                container.insertBefore(draggable, afterElement);
+            }
+        });
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.combatant:not(.dragging)')];
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        // Initialize drag listeners for existing combatants
+        document.querySelectorAll('.combatant').forEach(draggable => {
+            addDragListeners(draggable);
+        });
+    </script>
+</body>
+</html>
